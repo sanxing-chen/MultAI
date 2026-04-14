@@ -314,6 +314,7 @@ function createPane(provider) {
         <div class="pane-actions">
           <span class="pane-status" data-role="status">loading</span>
           <button type="button" class="pane-action" data-pane-action="quote" title="Quote current selection from this pane">Quote</button>
+          <button type="button" class="pane-action" data-pane-action="open-site" title="Open this chat in a new tab">Open</button>
           <button type="button" class="pane-action" data-pane-action="reload">Reload</button>
           <button type="button" class="pane-action" data-pane-action="focus">Focus</button>
           <button type="button" class="pane-action" data-pane-action="new-chat">New chat</button>
@@ -338,6 +339,7 @@ function createPane(provider) {
   `;
 
   pane.querySelector('[data-pane-action="quote"]').addEventListener('click', () => quoteFromPane(provider.id));
+  pane.querySelector('[data-pane-action="open-site"]').addEventListener('click', () => openPaneInTab(provider.id));
   pane.querySelector('[data-pane-action="reload"]').addEventListener('click', () => reloadPane(provider.id));
   pane.querySelector('[data-pane-action="focus"]').addEventListener('click', () => focusPane(provider.id));
   pane.querySelector('[data-pane-action="new-chat"]').addEventListener('click', () => newChatOn(provider.id));
@@ -590,6 +592,20 @@ function focusPane(providerId) {
   state.crew = [providerId];
   saveState();
   render();
+}
+
+async function openPaneInTab(providerId) {
+  const pane = panes[providerId];
+  const provider = getProvider(providerId);
+  if (!provider) return;
+  let url = provider.url;
+  if (pane?.ready && pane.iframe?.contentWindow) {
+    try {
+      const res = await sendToPane(pane.iframe, provider.origin, { type: MSG.GET_URL }, { timeoutMs: 2000 });
+      if (res.url) url = res.url;
+    } catch (_) { /* fall back to provider.url */ }
+  }
+  chrome.runtime.sendMessage({ type: 'multai:open-in-tab', url });
 }
 
 async function newChatOn(providerId) {

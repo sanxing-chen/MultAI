@@ -15,6 +15,8 @@ export const MSG = {
   READ_LAST_RESULT: 'multai:read-last-result',
   READ_SELECTION: 'multai:read-selection',
   READ_SELECTION_RESULT: 'multai:read-selection-result',
+  GET_URL: 'multai:get-url',
+  GET_URL_RESULT: 'multai:get-url-result',
   ERROR: 'multai:error'
 };
 

@@ -273,6 +273,10 @@
           reply({ type: 'multai:read-selection-result', text: t });
           break;
         }
+        case 'multai:get-url': {
+          reply({ type: 'multai:get-url-result', url: location.href });
+          break;
+        }
         default:
           reply({ type: 'multai:error', error: `unknown message: ${data.type}` });
       }
