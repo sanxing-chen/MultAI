@@ -9,7 +9,6 @@ const LIBRARY_KEY = 'multai.library';
 const state = {
   crew: [...DEFAULT_CREW],
   paneSettings: {},
-  paneChat: {},
   benchCollapsed: false,
   controlsCollapsed: false,
   maxPerRow: 3
@@ -17,7 +16,6 @@ const state = {
 
 const panes = {};                 // { [providerId]: { iframe, ready, state } }
 let attachments = [];             // File[]
-let openChatPickerFor = null;
 let library = [];                 // [{ id, name, text }]
 
 const PANE_ORIGINS = new Set(PROVIDERS.map(p => p.origin));
@@ -31,9 +29,6 @@ async function loadState() {
   const valid = new Set(PROVIDERS.map(p => p.id));
   const before = state.crew.length;
   state.crew = state.crew.filter(id => valid.has(id));
-  for (const id of Object.keys(state.paneChat || {})) {
-    if (!valid.has(id)) delete state.paneChat[id];
-  }
   if (state.crew.length !== before) await saveState();
   render();
 }
@@ -216,8 +211,6 @@ function createPane(provider) {
   pane.className = 'pane';
   pane.dataset.provider = provider.id;
 
-  const chatLabel = getChatLabel(provider.id);
-
   pane.innerHTML = `
     <div class="pane-header">
       <div class="pane-title-row">
@@ -230,18 +223,6 @@ function createPane(provider) {
           <button type="button" class="pane-action" data-pane-action="new-chat">New chat</button>
         </div>
       </div>
-      <dl class="pane-settings">
-        <dt>Model</dt><dd data-role="model">—</dd>
-        <dt>Plan</dt><dd data-role="plan">—</dd>
-        <dt>Chat</dt>
-        <dd>
-          <div class="chat-picker">
-            <button type="button" class="chat-picker-btn" data-pane-action="chat-picker">
-              <span class="chat-picker-value">${escapeHtml(chatLabel)}</span>
-            </button>
-          </div>
-        </dd>
-      </dl>
     </div>
     <div class="pane-body">
       <iframe
@@ -264,10 +245,6 @@ function createPane(provider) {
   pane.querySelector('[data-pane-action="reload"]').addEventListener('click', () => reloadPane(provider.id));
   pane.querySelector('[data-pane-action="focus"]').addEventListener('click', () => focusPane(provider.id));
   pane.querySelector('[data-pane-action="new-chat"]').addEventListener('click', () => newChatOn(provider.id));
-  pane.querySelector('[data-pane-action="chat-picker"]').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleChatPicker(provider.id, e.currentTarget);
-  });
   pane.querySelector('[data-pane-action="open-tab"]').addEventListener('click', () => {
     chrome.runtime.sendMessage({ type: 'multai:open-in-tab', url: provider.url });
   });
@@ -340,22 +317,12 @@ function startReadyWatchdog(providerId) {
   }, 20000);
 }
 
-function getChatLabel(providerId) {
-  const chat = state.paneChat[providerId];
-  if (!chat || chat === 'new') return 'New';
-  const paneState = panes[providerId]?.state;
-  const thread = paneState?.threads?.find(t => t.id === chat);
-  return thread?.title || 'Resumed';
-}
-
 function updatePaneHeader(providerId) {
   const pane = panes[providerId];
   const paneEl = document.querySelector(`.pane[data-provider="${providerId}"]`);
   if (!pane || !paneEl) return;
 
   const statusEl = paneEl.querySelector('[data-role="status"]');
-  const modelEl = paneEl.querySelector('[data-role="model"]');
-  const planEl = paneEl.querySelector('[data-role="plan"]');
   const paneState = pane.state;
 
   if (!pane.ready) {
@@ -371,9 +338,6 @@ function updatePaneHeader(providerId) {
     statusEl.textContent = 'signed out?';
     statusEl.className = 'pane-status';
   }
-
-  modelEl.textContent = paneState?.currentModel || '—';
-  planEl.textContent = paneState?.plan || '—';
 }
 
 function renderBench() {
@@ -531,9 +495,6 @@ function focusPane(providerId) {
 }
 
 async function newChatOn(providerId) {
-  state.paneChat[providerId] = 'new';
-  await saveState();
-  updateChatLabel(providerId);
   const pane = panes[providerId];
   const provider = getProvider(providerId);
   if (!pane?.ready) {
@@ -545,81 +506,6 @@ async function newChatOn(providerId) {
   } catch (_) {
     pane.iframe.src = provider.url;
   }
-}
-
-function updateChatLabel(providerId) {
-  const paneEl = document.querySelector(`.pane[data-provider="${providerId}"]`);
-  if (!paneEl) return;
-  const valueEl = paneEl.querySelector('.chat-picker-value');
-  if (valueEl) valueEl.textContent = getChatLabel(providerId);
-}
-
-function toggleChatPicker(providerId, button) {
-  if (openChatPickerFor === providerId) {
-    closeChatPicker();
-    return;
-  }
-  closeChatPicker();
-  openChatPickerFor = providerId;
-
-  const paneState = panes[providerId]?.state;
-  const threads = paneState?.threads || [];
-  const current = state.paneChat[providerId] || 'new';
-
-  const menu = document.createElement('div');
-  menu.className = 'chat-picker-menu';
-
-  const addItem = (label, id) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = label;
-    if (id === current) btn.classList.add('is-active');
-    btn.addEventListener('click', async () => {
-      closeChatPicker();
-      state.paneChat[providerId] = id;
-      await saveState();
-      updateChatLabel(providerId);
-      const pane = panes[providerId];
-      const provider = getProvider(providerId);
-      if (!pane) return;
-      try {
-        await sendToPane(pane.iframe, provider.origin, { type: MSG.SET_CHAT, chatId: id });
-      } catch (err) {
-        showBanner(`Could not switch chat in ${provider.label}: ${err.message}`);
-      }
-    });
-    menu.appendChild(btn);
-  };
-
-  addItem('New chat', 'new');
-
-  if (threads.length) {
-    const divider = document.createElement('div');
-    divider.className = 'menu-divider';
-    menu.appendChild(divider);
-    for (const t of threads) addItem(t.title || 'Untitled', t.id);
-  } else {
-    const empty = document.createElement('div');
-    empty.className = 'menu-empty';
-    empty.textContent = panes[providerId]?.ready
-      ? 'No recent chats detected.'
-      : 'Waiting for pane to finish loading…';
-    menu.appendChild(empty);
-  }
-
-  button.parentElement.appendChild(menu);
-  setTimeout(() => document.addEventListener('click', closeChatPickerOnOutside, { once: true }), 0);
-}
-
-function closeChatPicker() {
-  const menu = document.querySelector('.chat-picker-menu');
-  if (menu) menu.remove();
-  openChatPickerFor = null;
-}
-
-function closeChatPickerOnOutside(e) {
-  if (e.target.closest('.chat-picker-menu')) return;
-  closeChatPicker();
 }
 
 /* ---------- Attachments ---------- */
@@ -1086,7 +972,6 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!document.getElementById('compare-drawer').hidden) { closeCompare(); return; }
     if (!document.getElementById('library-popup').hidden) { closeLibrary(); return; }
-    closeChatPicker();
     return;
   }
 
