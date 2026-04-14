@@ -315,8 +315,10 @@
             reply({ type: 'multai:set-chat-ack', ok: true });
             break;
           case 'multai:read-last': {
-            const r = await readLast(config.lastResponseSelectors || []);
-            reply({ type: 'multai:read-last-result', text: r.text, html: r.html });
+            const r = typeof config.readLast === 'function'
+              ? await config.readLast()
+              : await readLast(config.lastResponseSelectors || []);
+            reply({ type: 'multai:read-last-result', text: r.text || '', html: r.html || '' });
             break;
           }
           case 'multai:read-selection': {
