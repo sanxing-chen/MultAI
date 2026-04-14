@@ -12,6 +12,16 @@ MultAI is a Chrome extension that lets you talk to seven AI chat sites at once â
 
 ![MultAI cockpit](figures/mainpage.png)
 
+## Install (unpacked)
+
+1. Clone or download this repository.
+2. Open `chrome://extensions` in Chrome (or any Chromium browser â€” Edge, Brave, Arc).
+3. Toggle **Developer mode** on (top right).
+4. Click **Load unpacked** and select the project folder (the one that contains `manifest.json`).
+5. Click the MultAI action in the toolbar to open the cockpit.
+
+The first time you open the cockpit, each pane will need you to sign in to that provider in its own iframe. After that, your browser session is reused on every load.
+
 ## What it does
 
 - One prompt box broadcasts to every active pane at the same time.
@@ -40,16 +50,6 @@ MultAI is a Chrome extension that lets you talk to seven AI chat sites at once â
 - Storage is limited to `chrome.storage.local` â€” crew selection, pane row heights, max panes per row, the prompt library, and the saved plans shown on the settings page.
 
 ![Settings page](figures/settings.png)
-
-## Install (unpacked)
-
-1. Clone or download this repository.
-2. Open `chrome://extensions` in Chrome (or any Chromium browser â€” Edge, Brave, Arc).
-3. Toggle **Developer mode** on (top right).
-4. Click **Load unpacked** and select the project folder (the one that contains `manifest.json`).
-5. Click the MultAI action in the toolbar to open the cockpit.
-
-The first time you open the cockpit, each pane will need you to sign in to that provider in its own iframe. After that, your browser session is reused on every load.
 
 ## Usage tips
 
