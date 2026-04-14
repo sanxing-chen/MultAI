@@ -20,6 +20,7 @@
       <span class="brand-subtitle">one prompt, many minds</span>
     </div>
     <nav class="topnav">
+      <button type="button" class="link" data-action="new-conversation" title="Start a fresh conversation in every active pane">New conversation</button>
       <button type="button" class="link" data-action="compare" title="Compare responses (Cmd+Shift+C)">Compare</button>
       <button type="button" class="link" data-action="open-settings">Settings</button>
     </nav>
@@ -52,8 +53,14 @@
         <button type="button" class="chip is-active" data-master="tools" data-value="pane">per pane</button>
       </div>
       <div class="master-group">
+        <span class="master-label">Per row</span>
+        <button type="button" class="chip" data-per-row="1">1</button>
+        <button type="button" class="chip" data-per-row="2">2</button>
+        <button type="button" class="chip" data-per-row="3">3</button>
+        <button type="button" class="chip" data-per-row="4">4</button>
+      </div>
+      <div class="master-group">
         <button type="button" class="chip" id="blind-toggle" title="Toggle blind mode (Cmd+B)">Blind mode · off</button>
-        <button type="button" class="chip" id="reset-layout" title="Reset pane sizes and order">Reset layout</button>
       </div>
     </div>
   </section>

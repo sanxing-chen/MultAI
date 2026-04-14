@@ -14,7 +14,7 @@ const state = {
   paneSettings: {},
   paneChat: {},
   benchCollapsed: false,
-  layout: null
+  maxPerRow: 3
 };
 
 const panes = {};                 // { [providerId]: { iframe, ready, state } }
@@ -69,6 +69,7 @@ function render() {
   renderCrew();
   renderPresets();
   renderMaster();
+  renderPerRow();
   renderGrid();
   renderBench();
   applyBlindMode();
@@ -109,152 +110,42 @@ function renderMaster() {
   }
 }
 
-/* ---------- Layout tree ----------
- * A layout is a binary tree.
- *   leaf:  { t: 'l', id }
- *   split: { t: 's', d: 'row' | 'col', r: 0..1, c: [childA, childB] }
- * `d: 'row'` lays children side-by-side (vertical splitter between).
- * `d: 'col'` stacks children top-to-bottom (horizontal splitter between).
- * `r` is the flex fraction given to the first child; second gets 1 - r.
+function renderPerRow() {
+  const value = state.maxPerRow || 3;
+  for (const chip of document.querySelectorAll('.chip[data-per-row]')) {
+    chip.classList.toggle('is-active', Number(chip.dataset.perRow) === value);
+  }
+}
+
+/* ---------- Render grid ---------- *
+ * Panes are created at most once per provider and kept alive in the DOM.
+ * Hiding a pane (display: none) keeps its iframe and chat state intact,
+ * so removing and re-adding a provider never resets the conversation.
+ * CSS Grid places visible panes; column count comes from state.maxPerRow.
  */
-
-function layoutCollectIds(node) {
-  if (!node) return [];
-  if (node.t === 'l') return [node.id];
-  return [...layoutCollectIds(node.c[0]), ...layoutCollectIds(node.c[1])];
-}
-
-function buildDefaultLayout(ids, dir = 'row') {
-  if (ids.length === 0) return null;
-  if (ids.length === 1) return { t: 'l', id: ids[0] };
-  const mid = Math.ceil(ids.length / 2);
-  const nextDir = dir === 'row' ? 'col' : 'row';
-  return {
-    t: 's',
-    d: dir,
-    r: mid / ids.length,
-    c: [
-      buildDefaultLayout(ids.slice(0, mid), nextDir),
-      buildDefaultLayout(ids.slice(mid), nextDir)
-    ]
-  };
-}
-
-function layoutRemoveLeaf(node, id) {
-  if (!node) return null;
-  if (node.t === 'l') return node.id === id ? null : node;
-  const a = layoutRemoveLeaf(node.c[0], id);
-  const b = layoutRemoveLeaf(node.c[1], id);
-  if (!a) return b;
-  if (!b) return a;
-  return { ...node, c: [a, b] };
-}
-
-function layoutFindLargestLeaf(node) {
-  let best = { path: [], area: -1 };
-  function walk(n, path, area) {
-    if (n.t === 'l') {
-      if (area > best.area) best = { path, area };
-      return;
-    }
-    walk(n.c[0], [...path, 0], area * n.r);
-    walk(n.c[1], [...path, 1], area * (1 - n.r));
-  }
-  walk(node, [], 1);
-  return best.path;
-}
-
-function layoutAtPath(node, path) {
-  let cur = node;
-  for (const idx of path) cur = cur.c[idx];
-  return cur;
-}
-
-function layoutUpdateAt(node, path, updater) {
-  if (path.length === 0) return updater(node);
-  const [head, ...rest] = path;
-  const newChildren = node.c.slice();
-  newChildren[head] = layoutUpdateAt(node.c[head], rest, updater);
-  return { ...node, c: newChildren };
-}
-
-function layoutAddLeaf(node, id) {
-  if (!node) return { t: 'l', id };
-  const path = layoutFindLargestLeaf(node);
-  // Alternate direction by depth so nested splits don't all go the same way.
-  const parentPath = path.slice(0, -1);
-  let parentDir = null;
-  if (parentPath.length > 0) {
-    const parent = layoutAtPath(node, parentPath);
-    if (parent.t === 's') parentDir = parent.d;
-  }
-  const newDir = parentDir === 'row' ? 'col' : 'row';
-  return layoutUpdateAt(node, path, (leafNode) => ({
-    t: 's',
-    d: newDir,
-    r: 0.5,
-    c: [leafNode, { t: 'l', id }]
-  }));
-}
-
-function layoutSwap(node, idA, idB) {
-  if (node.t === 'l') {
-    if (node.id === idA) return { t: 'l', id: idB };
-    if (node.id === idB) return { t: 'l', id: idA };
-    return node;
-  }
-  return { ...node, c: [layoutSwap(node.c[0], idA, idB), layoutSwap(node.c[1], idA, idB)] };
-}
-
-function syncLayoutWithCrew(layout, crewIds) {
-  if (crewIds.length === 0) return null;
-  if (!layout) return buildDefaultLayout(crewIds);
-
-  const currentIds = layoutCollectIds(layout);
-  const currentSet = new Set(currentIds);
-  const newSet = new Set(crewIds);
-
-  // Remove ids no longer in crew
-  let result = layout;
-  for (const id of currentIds) {
-    if (!newSet.has(id)) {
-      result = layoutRemoveLeaf(result, id);
-      if (!result) break;
-    }
-  }
-  if (!result) return buildDefaultLayout(crewIds);
-
-  // Add new ids (preserve crew order by adding in iteration order)
-  for (const id of crewIds) {
-    if (!currentSet.has(id)) {
-      result = layoutAddLeaf(result, id);
-    }
-  }
-
-  return result;
-}
-
-function resetLayout() {
-  state.layout = buildDefaultLayout(state.crew);
-  saveState();
-  renderGrid();
-}
-
-/* ---------- Render grid ---------- */
 
 function renderGrid() {
   const grid = document.getElementById('grid');
-  grid.innerHTML = '';
-  grid.setAttribute('data-count', String(state.crew.length));
   grid.classList.toggle('is-blind', blindMode);
   grid.classList.remove('is-dragging');
 
-  // Drop pane entries for providers no longer active
+  // Remove placeholder from previous empty state
+  grid.querySelectorAll('.pane-placeholder-host').forEach(el => el.remove());
+
+  // Drop panes for providers that no longer exist in PROVIDERS at all
+  const validIds = new Set(PROVIDERS.map(p => p.id));
   for (const id of Object.keys(panes)) {
-    if (!state.crew.includes(id)) delete panes[id];
+    if (!validIds.has(id)) {
+      panes[id]?.element?.remove();
+      delete panes[id];
+    }
   }
 
   if (state.crew.length === 0) {
+    // Hide every pane but keep their iframes alive
+    for (const id of Object.keys(panes)) {
+      if (panes[id].element) panes[id].element.classList.add('is-hidden');
+    }
     const host = document.createElement('div');
     host.className = 'pane-placeholder-host';
     host.innerHTML = `
@@ -264,99 +155,42 @@ function renderGrid() {
       </div>
     `;
     grid.appendChild(host);
-    state.layout = null;
+    grid.style.setProperty('--cols', '1');
     return;
   }
 
-  state.layout = syncLayoutWithCrew(state.layout, state.crew);
-  grid.appendChild(renderLayoutNode(state.layout, []));
-}
-
-function renderLayoutNode(node, path) {
-  if (node.t === 'l') {
-    const provider = getProvider(node.id);
-    if (!provider) {
-      const missing = document.createElement('div');
-      missing.className = 'pane';
-      return missing;
+  // Ensure a pane exists for each crew member (create once, reuse forever)
+  for (const id of state.crew) {
+    if (!panes[id]?.element) {
+      const provider = getProvider(id);
+      if (provider) {
+        const pane = createPane(provider);
+        attachPaneSwapHandlers(pane, id);
+        grid.appendChild(pane);
+      }
     }
-    const pane = createPane(provider);
-    attachPaneSwapHandlers(pane, node.id);
-    return pane;
   }
 
-  const wrap = document.createElement('div');
-  wrap.className = `split split-${node.d}`;
+  // Show / hide based on crew membership and set grid order for crew panes
+  const maxCols = clamp(state.maxPerRow || 3, 1, 4);
+  const cols = Math.min(maxCols, state.crew.length);
+  grid.style.setProperty('--cols', String(cols));
 
-  const first = renderLayoutNode(node.c[0], [...path, 0]);
-  first.style.flex = String(node.r);
-
-  const splitter = document.createElement('div');
-  splitter.className = 'splitter';
-  splitter.dataset.dir = node.d;
-  splitter.dataset.path = path.join('.');
-  splitter.addEventListener('mousedown', (e) => startSplitterDrag(e, node.d, path.slice()));
-
-  const second = renderLayoutNode(node.c[1], [...path, 1]);
-  second.style.flex = String(1 - node.r);
-
-  wrap.append(first, splitter, second);
-  return wrap;
+  for (const id of Object.keys(panes)) {
+    const el = panes[id].element;
+    if (!el) continue;
+    const idx = state.crew.indexOf(id);
+    if (idx === -1) {
+      el.classList.add('is-hidden');
+      el.style.order = '';
+    } else {
+      el.classList.remove('is-hidden');
+      el.style.order = String(idx);
+    }
+  }
 }
-
-/* ---------- Splitter drag ---------- */
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-function startSplitterDrag(e, dir, path) {
-  e.preventDefault();
-  const grid = document.getElementById('grid');
-  const splitter = e.currentTarget;
-  const parent = splitter.parentElement;
-  if (!parent) return;
-
-  const rect = parent.getBoundingClientRect();
-  const splitterSize = dir === 'row' ? splitter.offsetWidth : splitter.offsetHeight;
-  const totalLength = (dir === 'row' ? rect.width : rect.height) - splitterSize;
-  if (totalLength <= 0) return;
-
-  const startPos = dir === 'row' ? e.clientX : e.clientY;
-  const startRatio = layoutAtPath(state.layout, path).r;
-
-  grid.classList.add('is-dragging');
-  splitter.classList.add('is-active');
-
-  // Find the two sibling elements to restyle on the fly
-  const siblings = Array.from(parent.children);
-  const splitterIdx = siblings.indexOf(splitter);
-  const before = siblings[splitterIdx - 1];
-  const after = siblings[splitterIdx + 1];
-
-  let latestRatio = startRatio;
-
-  function onMove(ev) {
-    const pos = dir === 'row' ? ev.clientX : ev.clientY;
-    const delta = pos - startPos;
-    const newRatio = clamp(startRatio + delta / totalLength, 0.1, 0.9);
-    latestRatio = newRatio;
-    if (before) before.style.flex = String(newRatio);
-    if (after) after.style.flex = String(1 - newRatio);
-  }
-
-  function onUp() {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    grid.classList.remove('is-dragging');
-    splitter.classList.remove('is-active');
-    if (latestRatio !== startRatio) {
-      state.layout = layoutUpdateAt(state.layout, path, (n) => ({ ...n, r: latestRatio }));
-      saveState();
-    }
-  }
-
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
-}
 
 /* ---------- Pane swap via drag ---------- */
 
@@ -394,7 +228,12 @@ function attachPaneSwapHandlers(pane, providerId) {
     pane.classList.remove('is-drop-target');
     if (!srcId || srcId === providerId) return;
     e.preventDefault();
-    state.layout = layoutSwap(state.layout, srcId, providerId);
+    const srcIdx = state.crew.indexOf(srcId);
+    const dstIdx = state.crew.indexOf(providerId);
+    if (srcIdx === -1 || dstIdx === -1) return;
+    const next = state.crew.slice();
+    [next[srcIdx], next[dstIdx]] = [next[dstIdx], next[srcIdx]];
+    state.crew = next;
     saveState();
     renderGrid();
   });
@@ -464,7 +303,7 @@ function createPane(provider) {
 
   const iframe = pane.querySelector('iframe');
   const fallback = pane.querySelector('[data-role="fallback"]');
-  panes[provider.id] = { iframe, fallback, ready: false, state: null };
+  panes[provider.id] = { iframe, fallback, ready: false, state: null, element: pane };
 
   if (provider.hasContentScript) {
     // Wake the content script once the iframe has finished loading, and keep
@@ -631,6 +470,25 @@ function setMaster(key, value) {
   state.master[key] = value;
   saveState();
   renderMaster();
+}
+
+function setMaxPerRow(value) {
+  const n = clamp(Number(value) || 3, 1, 4);
+  if (state.maxPerRow === n) return;
+  state.maxPerRow = n;
+  saveState();
+  renderPerRow();
+  renderGrid();
+}
+
+async function newConversationAll() {
+  const crew = state.crew.slice();
+  if (crew.length === 0) {
+    showBanner('No active panes — activate a provider first.');
+    return;
+  }
+  await Promise.allSettled(crew.map(id => newChatOn(id)));
+  showBanner(`Started a new conversation in ${crew.length} pane${crew.length === 1 ? '' : 's'}.`);
 }
 
 function reloadPane(providerId) {
@@ -1207,7 +1065,12 @@ for (const chip of document.querySelectorAll('.chip[data-master]')) {
   chip.addEventListener('click', () => setMaster(chip.dataset.master, chip.dataset.value));
 }
 
+for (const chip of document.querySelectorAll('.chip[data-per-row]')) {
+  chip.addEventListener('click', () => setMaxPerRow(chip.dataset.perRow));
+}
+
 document.querySelector('[data-action="compare"]')?.addEventListener('click', openCompare);
+document.querySelector('[data-action="new-conversation"]')?.addEventListener('click', newConversationAll);
 
 document.getElementById('library-btn').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -1218,7 +1081,6 @@ document.getElementById('library-save').addEventListener('click', saveCurrentPro
 document.getElementById('library-close').addEventListener('click', closeLibrary);
 
 document.getElementById('blind-toggle').addEventListener('click', toggleBlind);
-document.getElementById('reset-layout').addEventListener('click', resetLayout);
 
 document.getElementById('compare-refresh').addEventListener('click', refreshCompare);
 document.getElementById('compare-export').addEventListener('click', exportCompareMarkdown);
