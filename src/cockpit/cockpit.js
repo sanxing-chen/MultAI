@@ -11,8 +11,12 @@ const state = {
   paneSettings: {},
   benchCollapsed: false,
   controlsCollapsed: false,
-  maxPerRow: 3
+  maxPerRow: 3,
+  rowHeights: []
 };
+
+const DEFAULT_ROW_HEIGHT = 720;
+const MIN_ROW_HEIGHT = 240;
 
 const panes = {};                 // { [providerId]: { iframe, ready, state } }
 let attachments = [];             // File[]
@@ -155,9 +159,101 @@ function renderGrid() {
       el.style.order = String(idx);
     }
   }
+
+  syncRowHeights();
+  applyGridTemplateRows();
+  renderRowSplitters();
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+/* ---------- Row resize ---------- */
+
+function syncRowHeights() {
+  const maxCols = clamp(state.maxPerRow || 3, 1, 4);
+  const cols = Math.min(maxCols, state.crew.length);
+  const rows = state.crew.length === 0 ? 0 : Math.max(1, Math.ceil(state.crew.length / Math.max(cols, 1)));
+  if (!Array.isArray(state.rowHeights)) state.rowHeights = [];
+  while (state.rowHeights.length < rows) state.rowHeights.push(DEFAULT_ROW_HEIGHT);
+  if (state.rowHeights.length > rows) state.rowHeights.length = rows;
+  return { cols, rows };
+}
+
+function applyGridTemplateRows() {
+  const grid = document.getElementById('grid');
+  const { rows } = syncRowHeights();
+  if (rows <= 1) {
+    grid.style.gridTemplateRows = '';
+  } else {
+    grid.style.gridTemplateRows = state.rowHeights.map(h => `${h}px`).join(' ');
+  }
+}
+
+function renderRowSplitters() {
+  const grid = document.getElementById('grid');
+  grid.querySelectorAll('.row-splitter').forEach(el => el.remove());
+  const { rows } = syncRowHeights();
+  if (rows < 2) return;
+  for (let i = 0; i < rows - 1; i++) {
+    const splitter = document.createElement('div');
+    splitter.className = 'row-splitter';
+    splitter.dataset.row = String(i);
+    splitter.title = 'Drag to resize rows';
+    splitter.addEventListener('mousedown', (e) => startRowResizeDrag(e, i));
+    grid.appendChild(splitter);
+  }
+  positionRowSplitters();
+}
+
+function positionRowSplitters() {
+  const grid = document.getElementById('grid');
+  const cs = getComputedStyle(grid);
+  const gap = parseFloat(cs.rowGap) || 12;
+  const padTop = parseFloat(cs.paddingTop) || 0;
+  const heights = state.rowHeights || [];
+  const splitters = grid.querySelectorAll('.row-splitter');
+  splitters.forEach((s, i) => {
+    let top = padTop;
+    for (let j = 0; j <= i; j++) top += heights[j] || DEFAULT_ROW_HEIGHT;
+    top += i * gap;
+    s.style.top = `${top}px`;
+  });
+}
+
+function startRowResizeDrag(e, rowIdx) {
+  e.preventDefault();
+  const grid = document.getElementById('grid');
+  const splitter = e.currentTarget;
+  grid.classList.add('is-dragging');
+  splitter.classList.add('is-active');
+
+  const startY = e.clientY;
+  const startA = state.rowHeights[rowIdx];
+  const startB = state.rowHeights[rowIdx + 1];
+
+  function onMove(ev) {
+    const delta = ev.clientY - startY;
+    let newA = startA + delta;
+    let newB = startB - delta;
+    if (newA < MIN_ROW_HEIGHT) { newA = MIN_ROW_HEIGHT; newB = startA + startB - MIN_ROW_HEIGHT; }
+    if (newB < MIN_ROW_HEIGHT) { newB = MIN_ROW_HEIGHT; newA = startA + startB - MIN_ROW_HEIGHT; }
+    state.rowHeights[rowIdx] = newA;
+    state.rowHeights[rowIdx + 1] = newB;
+    applyGridTemplateRows();
+    positionRowSplitters();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    grid.classList.remove('is-dragging');
+    splitter.classList.remove('is-active');
+    saveState();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
 
 /* ---------- Pane swap via drag ---------- */
 
