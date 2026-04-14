@@ -130,40 +130,6 @@ body {
   border-radius: 1px;
 }
 
-/* ---- Preset picker ---- */
-
-.preset-picker {
-  display: flex;
-  gap: var(--space-2);
-  flex: 1;
-  overflow-x: auto;
-  padding-bottom: var(--space-1);
-}
-
-.preset-picker::-webkit-scrollbar { height: 4px; }
-.preset-picker::-webkit-scrollbar-thumb { background: var(--divider-strong); border-radius: 2px; }
-
-.preset {
-  background: none;
-  border: 1px solid var(--divider);
-  border-radius: var(--radius);
-  padding: 6px 14px;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  color: var(--text-muted);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--duration) var(--ease);
-}
-
-.preset:hover { border-color: var(--divider-strong); color: var(--text); }
-
-.preset.is-selected {
-  border-color: var(--accent);
-  color: var(--text);
-  background: var(--accent-soft);
-}
-
 /* ---- Buttons ---- */
 
 .btn-ghost {

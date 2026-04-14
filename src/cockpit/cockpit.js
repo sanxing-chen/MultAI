@@ -1,5 +1,4 @@
 import { PROVIDERS, DEFAULT_CREW, getProvider } from '../shared/providers.js';
-import { PRESETS, getPreset } from '../shared/presets.js';
 import { MSG, sendToPane } from '../shared/messaging.js';
 import { MAX_ATTACHMENT_BYTES, formatSize, truncateName } from '../shared/attachments.js';
 
@@ -9,7 +8,6 @@ const LIBRARY_KEY = 'multai.library';
 
 const state = {
   crew: [...DEFAULT_CREW],
-  selectedPreset: null,
   paneSettings: {},
   paneChat: {},
   benchCollapsed: false,
@@ -66,7 +64,6 @@ async function saveLibrary() {
 
 function render() {
   renderCrew();
-  renderPresets();
   renderPerRow();
   renderGrid();
   renderBench();
@@ -82,20 +79,6 @@ function renderCrew() {
     btn.className = 'crew-item' + (state.crew.includes(provider.id) ? ' is-active' : '');
     btn.textContent = provider.label;
     btn.addEventListener('click', () => toggleCrew(provider.id));
-    el.appendChild(btn);
-  }
-}
-
-function renderPresets() {
-  const el = document.getElementById('preset-picker');
-  el.innerHTML = '';
-  for (const preset of PRESETS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'preset' + (state.selectedPreset === preset.id ? ' is-selected' : '');
-    btn.textContent = preset.label;
-    btn.title = preset.description;
-    btn.addEventListener('click', () => selectPreset(preset.id));
     el.appendChild(btn);
   }
 }
@@ -447,12 +430,6 @@ function toggleCrew(id) {
     : [...state.crew, id];
   saveState();
   render();
-}
-
-function selectPreset(id) {
-  state.selectedPreset = state.selectedPreset === id ? null : id;
-  saveState();
-  renderPresets();
 }
 
 function toggleControls() {
@@ -1070,12 +1047,6 @@ document.getElementById('attach-btn').addEventListener('click', () => {
 document.getElementById('file-input').addEventListener('change', (e) => {
   if (e.target.files?.length) addFiles(e.target.files);
   e.target.value = '';
-});
-
-document.querySelector('[data-action="apply-preset"]').addEventListener('click', () => {
-  if (!state.selectedPreset) return;
-  const preset = getPreset(state.selectedPreset);
-  showBanner(`"${preset.label}" — per-provider setter wiring comes in step 2.5.`);
 });
 
 document.querySelector('[data-action="open-settings"]').addEventListener('click', () => {
