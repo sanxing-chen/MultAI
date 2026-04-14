@@ -683,6 +683,7 @@ body[data-bench-state="collapsed"] .grid { padding-right: 48px; }
 /* ---- Controls fold ---- */
 
 .controls.is-collapsed { display: none; }
+.prompt-area.is-collapsed { display: none; }
 
 .topnav {
   display: flex;

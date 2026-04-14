@@ -11,6 +11,7 @@ const state = {
   paneSettings: {},
   benchCollapsed: false,
   controlsCollapsed: false,
+  promptCollapsed: false,
   maxPerRow: 3,
   rowHeights: [],
   layoutMode: 'grid',   // 'grid' | 'tabs'
@@ -70,6 +71,7 @@ function render() {
   renderGrid();
   renderBench();
   applyControlsCollapsed();
+  applyPromptCollapsed();
 }
 
 function renderLayoutMode() {
@@ -594,6 +596,26 @@ function applyControlsCollapsed() {
     const collapsed = !!state.controlsCollapsed;
     btn.textContent = collapsed ? '▼' : '▲';
     const label = collapsed ? 'Expand controls' : 'Collapse controls';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
+}
+
+function togglePrompt() {
+  state.promptCollapsed = !state.promptCollapsed;
+  saveState();
+  applyPromptCollapsed();
+}
+
+function applyPromptCollapsed() {
+  const area = document.getElementById('prompt-area');
+  if (area) area.classList.toggle('is-collapsed', !!state.promptCollapsed);
+  const btn = document.getElementById('prompt-toggle');
+  requestAnimationFrame(updateGridOffset);
+  if (btn) {
+    const collapsed = !!state.promptCollapsed;
+    btn.textContent = collapsed ? '▼' : '▲';
+    const label = collapsed ? 'Expand prompt' : 'Collapse prompt';
     btn.title = label;
     btn.setAttribute('aria-label', label);
   }
@@ -1149,6 +1171,7 @@ document.querySelector('[data-action="compare"]')?.addEventListener('click', ope
 document.querySelector('[data-action="new-conversation"]')?.addEventListener('click', newConversationAll);
 document.querySelector('[data-action="new-temporary-chat"]')?.addEventListener('click', newTemporaryChatAll);
 document.getElementById('controls-toggle')?.addEventListener('click', toggleControls);
+document.getElementById('prompt-toggle')?.addEventListener('click', togglePrompt);
 
 document.getElementById('library-btn').addEventListener('click', (e) => {
   e.stopPropagation();
