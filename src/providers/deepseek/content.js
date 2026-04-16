@@ -41,6 +41,11 @@
       'div.ds-markdown',
       'div[class*="ds-markdown"]',
       'div[class*="markdown"]'
+    ],
+    copyButton: [
+      'button[aria-label*="Copy" i]',
+      'button[data-testid*="copy" i]',
+      'div[role="button"][aria-label*="Copy" i]'
     ]
   };
 
@@ -73,7 +78,7 @@
     };
   }
 
-  async function broadcast({ prompt, files }) {
+  async function broadcast({ prompt, files, skipSubmit }) {
     const input = await R.waitFor(() => R.findFirstVisible(S.promptInput), 15000);
     if (!input) throw new Error('prompt input not found');
     if (files?.length) {
@@ -81,6 +86,7 @@
       await R.wait(600);
     }
     await R.setPrompt(input, prompt);
+    if (skipSubmit) return;
     await R.wait(80);
     await R.submit(input, S.sendButton);
   }
@@ -91,7 +97,7 @@
     location.assign('/');
   }
 
-  R.register({ provider: PROVIDER, probe, broadcast, newChat, lastResponseSelectors: S.lastResponse });
+  R.register({ provider: PROVIDER, probe, broadcast, newChat, copyButtonSelectors: S.copyButton, lastResponseSelectors: S.lastResponse });
 
   // Auto-dismiss the cookie consent banner. DeepSeek's iframe context has its
   // own partitioned cookies, so the banner reappears every time the pane loads

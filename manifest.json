@@ -77,7 +77,7 @@
     },
     {
       "matches": ["https://chatgpt.com/*", "https://*.chatgpt.com/*"],
-      "js": ["src/providers/chatgpt/content.js"],
+      "js": ["src/providers/_runtime.js", "src/providers/chatgpt/content.js"],
       "all_frames": true,
       "run_at": "document_idle"
     },

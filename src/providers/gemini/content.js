@@ -49,7 +49,20 @@
     };
   }
 
-  async function broadcast({ prompt, files }) {
+  async function setGeminiPrompt(el, text) {
+    try { el.click(); } catch (_) {}
+    el.focus();
+    document.execCommand('selectAll', false);
+    document.execCommand('delete', false);
+    const html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+    document.execCommand('insertHTML', false, html);
+  }
+
+  async function broadcast({ prompt, files, skipSubmit }) {
     const input = await R.waitFor(() => R.findFirstVisible(S.promptInput), 15000);
     if (!input) throw new Error('prompt input not found');
     if (files?.length) {
@@ -58,6 +71,10 @@
         const b = R.findFirst(S.sendButton);
         return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true';
       }, 60000);
+    }
+    if (skipSubmit) {
+      await setGeminiPrompt(input, prompt);
+      return;
     }
     await R.setPrompt(input, prompt);
     await R.wait(80);

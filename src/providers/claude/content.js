@@ -40,6 +40,11 @@
       'div.font-claude-message',
       'div[class*="font-claude-message"]',
       'div[data-test-render-count]'
+    ],
+    copyButton: [
+      'button[aria-label="Copy response" i]',
+      'button[aria-label*="Copy" i]',
+      'button[data-testid*="copy" i]'
     ]
   };
 
@@ -50,7 +55,7 @@
     };
   }
 
-  async function broadcast({ prompt, files }) {
+  async function broadcast({ prompt, files, skipSubmit }) {
     const input = await R.waitFor(() => R.findFirstVisible(S.promptInput), 15000);
     if (!input) throw new Error('prompt input not found');
     if (files?.length) {
@@ -61,6 +66,7 @@
       }, 60000);
     }
     await R.setPrompt(input, prompt);
+    if (skipSubmit) return;
     await R.wait(80);
     await R.submit(input, S.sendButton);
   }
@@ -78,5 +84,5 @@
     location.assign(`/chat/${chatId}`);
   }
 
-  R.register({ provider: PROVIDER, probe, broadcast, newChat, setChat, lastResponseSelectors: S.lastResponse });
+  R.register({ provider: PROVIDER, probe, broadcast, newChat, setChat, copyButtonSelectors: S.copyButton, lastResponseSelectors: S.lastResponse });
 })();

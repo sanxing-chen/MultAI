@@ -79,8 +79,15 @@ src/
 | `src/shared/messaging.js` | Message protocol constants (`MSG.WAKE`, `MSG.BROADCAST`, etc.) and `sendToPane()` with timeout support. |
 | `src/cockpit/cockpit.js` | Main UI controller. Manages pane lifecycle, layout (grid/tabs), broadcast dispatch, Compare drawer, prompt library, bench, keyboard shortcuts. State persists via `chrome.storage.local` under `multai.*` keys. |
 | `src/providers/_runtime.js` | MAIN-world shared framework. Provides `setPrompt`, `submit`, `attachFiles`, `readLast`, and `register(config)` which wires up the `postMessage` listener for all standard operations. |
-| `src/providers/*/content.js` | Per-provider selectors and overrides. ChatGPT is standalone; all others call `__multaiRuntime.register({...})`. |
+| `src/providers/*/content.js` | Per-provider selectors and overrides. All providers call `__multaiRuntime.register({...})`. |
 | `src/background/service-worker.js` | Installs dynamic DNR rules, opens/focuses cockpit on action click, handles `multai:open-in-tab`. |
+
+## Judge feature
+
+Each pane header has a **Judge** button that collects the last assistant reply from other panes and composes a meta-prompt asking the selected model to evaluate them.
+
+- **`skipSubmit` flag:** The `BROADCAST` payload supports an optional `skipSubmit: true` boolean. When set, provider content scripts fill the chat input but do **not** auto-submit, giving the user a chance to review or edit the prompt. The judge flow uses this flag; normal broadcast does not.
+- **Judge picker popup:** Clicking the Judge button opens a popup dialog (`#judge-picker`) listing all other ready panes with checkboxes (all checked by default). The user selects which models' responses to include, then clicks "Judge" to proceed. The popup HTML lives in `cockpit.html`; styles are in `cockpit.css` under `.judge-picker*`.
 
 ## Conventions
 

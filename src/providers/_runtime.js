@@ -107,7 +107,7 @@
       }));
     } catch (_) {}
     await wait(80);
-    if (currentText(el) === text) return;
+    if (currentText(el)) return;
 
     // Strategy 2: execCommand — classic contenteditable.
     selectAll(el);
@@ -116,7 +116,7 @@
       document.execCommand('insertText', false, text);
     } catch (_) {}
     await wait(80);
-    if (currentText(el) === text) return;
+    if (currentText(el)) return;
 
     // Strategy 3: insertFromPaste via InputEvent + DataTransfer — many React
     // rich-text editors handle this path reliably.
@@ -131,7 +131,7 @@
       }));
     } catch (_) {}
     await wait(80);
-    if (currentText(el) === text) return;
+    if (currentText(el)) return;
 
     // Strategy 4: synthetic ClipboardEvent paste.
     try {
@@ -143,7 +143,7 @@
       }));
     } catch (_) {}
     await wait(80);
-    if (currentText(el) === text) return;
+    if (currentText(el)) return;
 
     // Strategy 5: composition events (IME-style) — some editors handle
     // insertCompositionText even when they reject insertText.
@@ -170,7 +170,7 @@
       }));
     } catch (_) {}
     await wait(80);
-    if (currentText(el) === text) return;
+    if (currentText(el)) return;
 
     // Strategy 6: character-by-character — slow but the closest synthetic
     // equivalent to real typing. Works on editors that insist on per-char
@@ -191,9 +191,9 @@
         await wait(2);
       }
     } catch (_) {}
-    if (currentText(el) === text) return;
+    if (currentText(el)) return;
 
-    // Strategy 6: brute force.
+    // Strategy 7: brute force.
     el.textContent = text;
     el.dispatchEvent(new InputEvent('input', {
       bubbles: true, inputType: 'insertText', data: text
@@ -279,6 +279,20 @@
     return { text: '', html: '' };
   }
 
+  async function readLastViaCopy(copyButtonSelectors, lastResponseSelectors) {
+    const btns = findAll(copyButtonSelectors);
+    if (btns.length) {
+      const btn = btns[btns.length - 1];
+      document.documentElement.removeAttribute('data-multai-clip');
+      btn.click();
+      await wait(150);
+      const text = document.documentElement.getAttribute('data-multai-clip') || '';
+      document.documentElement.removeAttribute('data-multai-clip');
+      if (text.trim()) return { text: text.trim(), html: '' };
+    }
+    return readLast(lastResponseSelectors);
+  }
+
   function register(config) {
     const PROVIDER = config.provider;
 
@@ -317,7 +331,10 @@
           case 'multai:read-last': {
             const r = typeof config.readLast === 'function'
               ? await config.readLast()
-              : await readLast(config.lastResponseSelectors || []);
+              : await readLastViaCopy(
+                  config.copyButtonSelectors || [],
+                  config.lastResponseSelectors || []
+                );
             reply({ type: 'multai:read-last-result', text: r.text || '', html: r.html || '' });
             break;
           }
@@ -408,6 +425,6 @@
     wait, waitFor,
     setTextareaValue, typeIntoContentEditable, setPrompt,
     clickWhenEnabled, pressEnter, submit, attachFiles,
-    readLast, dismissBanner, watchAndDismiss, register
+    readLast, readLastViaCopy, dismissBanner, watchAndDismiss, register
   };
 })();

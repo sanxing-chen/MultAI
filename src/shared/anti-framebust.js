@@ -27,4 +27,32 @@
       configurable: true
     });
   } catch (_) { /* already non-configurable */ }
+
+  // Intercept Clipboard API so content scripts can retrieve copied text
+  // via a DOM attribute even when the real API is blocked in iframes.
+  // Patch at the prototype level and cover both writeText() and write().
+  try {
+    var CP = Clipboard.prototype;
+    var ATTR = 'data-multai-clip';
+    var root = document.documentElement;
+
+    var origWriteText = CP.writeText;
+    CP.writeText = function (text) {
+      root.setAttribute(ATTR, text);
+      return origWriteText.apply(this, arguments).catch(function () {});
+    };
+
+    var origWrite = CP.write;
+    CP.write = function (data) {
+      try {
+        var item = data && data[0];
+        if (item && typeof item.getType === 'function') {
+          item.getType('text/plain').then(function (blob) {
+            blob.text().then(function (t) { root.setAttribute(ATTR, t); });
+          }).catch(function () {});
+        }
+      } catch (_) {}
+      return origWrite.apply(this, arguments).catch(function () {});
+    };
+  } catch (_) { /* clipboard not available */ }
 })();

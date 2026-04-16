@@ -40,6 +40,11 @@
       'div.markdown-body',
       'div[class*="markdown-body"]',
       'div[class*="markdown"]'
+    ],
+    copyButton: [
+      'button[aria-label*="Copy" i]',
+      'button[data-testid*="copy" i]',
+      'button[title*="Copy" i]'
     ]
   };
 
@@ -72,7 +77,7 @@
     };
   }
 
-  async function broadcast({ prompt, files }) {
+  async function broadcast({ prompt, files, skipSubmit }) {
     const input = await R.waitFor(() => R.findFirstVisible(S.promptInput), 15000);
     if (!input) throw new Error('prompt input not found');
     if (files?.length) {
@@ -80,6 +85,7 @@
       await R.wait(600);
     }
     await R.setPrompt(input, prompt);
+    if (skipSubmit) return;
     await R.wait(80);
     await R.submit(input, S.sendButton);
   }
@@ -90,5 +96,22 @@
     location.assign('/');
   }
 
-  R.register({ provider: PROVIDER, probe, broadcast, newChat, lastResponseSelectors: S.lastResponse });
+  async function readLast() {
+    const viaCopy = await R.readLastViaCopy(S.copyButton, S.lastResponse);
+    if (viaCopy.text && viaCopy.text.length > 0) return viaCopy;
+
+    for (const sel of S.lastResponse) {
+      const els = document.querySelectorAll(sel);
+      if (!els.length) continue;
+      const last = els[els.length - 1];
+      const container = last.parentElement || last;
+      return {
+        text: (container.innerText || container.textContent || '').trim(),
+        html: container.outerHTML || ''
+      };
+    }
+    return { text: '', html: '' };
+  }
+
+  R.register({ provider: PROVIDER, probe, broadcast, newChat, readLast, copyButtonSelectors: S.copyButton, lastResponseSelectors: S.lastResponse });
 })();
