@@ -40,6 +40,11 @@
       'div[class*="bot-message"]',
       'div[class*="ai-message"]',
       'div[class*="markdown"]'
+    ],
+    copyButton: [
+      'button[aria-label*="Copy" i]',
+      'div[role="button"][aria-label*="Copy" i]',
+      'button[data-testid*="copy" i]'
     ]
   };
 
@@ -50,7 +55,7 @@
     };
   }
 
-  async function broadcast({ prompt, files }) {
+  async function broadcast({ prompt, files, skipSubmit }) {
     const input = await R.waitFor(() => R.findFirstVisible(S.promptInput), 15000);
     if (!input) throw new Error('prompt input not found');
     if (files?.length) {
@@ -58,6 +63,7 @@
       await R.wait(600);
     }
     await R.setPrompt(input, prompt);
+    if (skipSubmit) return;
     await R.wait(80);
     await R.submit(input, S.sendButton);
   }
@@ -68,13 +74,9 @@
     location.assign('/');
   }
 
-  // Fallback readLast: Meta's chat UI uses obfuscated class names that shift
-  // between builds, so start with the selector list but drop to a heuristic
-  // pass when nothing matches — walk <main> for the last substantial text
-  // block that is not the composer itself.
   async function readLast() {
-    const byCss = await R.readLast(S.lastResponse);
-    if (byCss.text && byCss.text.length > 0) return byCss;
+    const viaCopy = await R.readLastViaCopy(S.copyButton, S.lastResponse);
+    if (viaCopy.text && viaCopy.text.length > 0) return viaCopy;
 
     const root = document.querySelector('main') || document.body;
     const composer = R.findFirst(S.promptInput);

@@ -398,6 +398,7 @@ function createPane(provider) {
         <span class="pane-title">${escapeHtml(provider.label)}</span>
         <div class="pane-actions">
           <span class="pane-status" data-role="status">loading</span>
+          <button type="button" class="pane-action" data-pane-action="judge" title="Ask this model to judge other models' responses">Judge</button>
           <button type="button" class="pane-action" data-pane-action="quote" title="Quote current selection from this pane">Quote</button>
           <button type="button" class="pane-action" data-pane-action="open-site" title="Open this chat in a new tab">Open</button>
           <button type="button" class="pane-action" data-pane-action="reload">Reload</button>
@@ -423,6 +424,7 @@ function createPane(provider) {
     </div>
   `;
 
+  pane.querySelector('[data-pane-action="judge"]').addEventListener('click', () => judgePane(provider.id));
   pane.querySelector('[data-pane-action="quote"]').addEventListener('click', () => quoteFromPane(provider.id));
   pane.querySelector('[data-pane-action="open-site"]').addEventListener('click', () => openPaneInTab(provider.id));
   pane.querySelector('[data-pane-action="reload"]').addEventListener('click', () => reloadPane(provider.id));
@@ -965,6 +967,119 @@ async function quoteFromPane(providerId) {
     showBanner(`Quote failed for ${provider.label}: ${err.message || err}`);
   }
 }
+
+/* ---------- Judge ---------- */
+
+let isJudging = false;
+let pendingJudgeProviderId = null;
+
+function judgePane(providerId) {
+  if (isJudging || isBroadcasting) return;
+  const provider = getProvider(providerId);
+  const targetPane = panes[providerId];
+  if (!provider || !targetPane?.ready) {
+    showBanner(`${provider?.label || 'Pane'} isn't ready yet.`);
+    return;
+  }
+
+  const others = state.crew.filter(id => id !== providerId && panes[id]?.ready && getProvider(id));
+  if (others.length === 0) {
+    showBanner('Need at least one other ready pane to judge.');
+    return;
+  }
+
+  pendingJudgeProviderId = providerId;
+  const list = document.getElementById('judge-picker-list');
+  list.innerHTML = others.map(id => {
+    const p = getProvider(id);
+    return `<li>
+      <label class="judge-picker-item">
+        <input type="checkbox" value="${id}" checked>
+        <span>${escapeHtml(p.label)}</span>
+      </label>
+    </li>`;
+  }).join('');
+  document.getElementById('judge-picker').hidden = false;
+}
+
+function closeJudgePicker() {
+  document.getElementById('judge-picker').hidden = true;
+  pendingJudgeProviderId = null;
+}
+
+function toggleAllJudgePicker() {
+  const boxes = document.querySelectorAll('#judge-picker-list input[type="checkbox"]');
+  const allChecked = Array.from(boxes).every(cb => cb.checked);
+  boxes.forEach(cb => { cb.checked = !allChecked; });
+}
+
+async function confirmJudge() {
+  const providerId = pendingJudgeProviderId;
+  if (!providerId) return;
+  const selected = Array.from(document.querySelectorAll('#judge-picker-list input[type="checkbox"]:checked'))
+    .map(cb => cb.value);
+
+  closeJudgePicker();
+
+  if (selected.length === 0) {
+    showBanner('Select at least one model to judge.');
+    return;
+  }
+
+  const provider = getProvider(providerId);
+  const targetPane = panes[providerId];
+  if (!provider || !targetPane?.ready) return;
+
+  isJudging = true;
+  const judgeBtn = document.querySelector(`.pane[data-provider="${providerId}"] [data-pane-action="judge"]`);
+  if (judgeBtn) { judgeBtn.textContent = 'Judging…'; judgeBtn.disabled = true; }
+
+  const results = await Promise.allSettled(
+    selected.map(async id => {
+      const p = getProvider(id);
+      const pane = panes[id];
+      const res = await sendToPane(pane.iframe, p.origin, { type: MSG.READ_LAST }, { timeoutMs: 6000 });
+      return { id, label: p.label, text: (res.text || '').trim() };
+    })
+  );
+
+  const responses = results
+    .filter(r => r.status === 'fulfilled' && r.value.text)
+    .map(r => r.value);
+
+  if (responses.length === 0) {
+    showBanner('Could not read any responses from the selected panes.');
+    isJudging = false;
+    if (judgeBtn) { judgeBtn.textContent = 'Judge'; judgeBtn.disabled = false; }
+    return;
+  }
+
+  const sections = responses.map(r => `--- ${r.label} ---\n${r.text}`).join('\n\n');
+  const prompt =
+    'Given the following responses from different AI models, analyze them and determine ' +
+    'which response is the most correct and comprehensive. Explain your reasoning.\n\n' +
+    sections +
+    '\n\nBased on the above, what do you think is the most correct response? Please provide your analysis.';
+
+  try {
+    targetPane.iframe.focus();
+    await sendToPane(targetPane.iframe, provider.origin, {
+      type: MSG.BROADCAST,
+      payload: { prompt, files: [], skipSubmit: true }
+    }, { timeoutMs: 120000 });
+    showBanner(`${provider.label} has the judge prompt loaded — review and send when ready.`);
+  } catch (err) {
+    showBanner(`Judge failed for ${provider.label}: ${err.message || err}`);
+  }
+
+  isJudging = false;
+  if (judgeBtn) { judgeBtn.textContent = 'Judge'; judgeBtn.disabled = false; }
+  probePane(providerId);
+}
+
+document.getElementById('judge-picker-close').addEventListener('click', closeJudgePicker);
+document.getElementById('judge-picker-toggle-all').addEventListener('click', toggleAllJudgePicker);
+document.getElementById('judge-picker-confirm').addEventListener('click', confirmJudge);
 
 let isBroadcasting = false;
 

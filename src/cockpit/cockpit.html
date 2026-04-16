@@ -98,6 +98,19 @@
     <div class="drawer-body" id="compare-body"></div>
   </div>
 
+  <!-- Judge picker popup -->
+  <div class="judge-picker" id="judge-picker" hidden role="dialog" aria-label="Select models to judge">
+    <header class="judge-picker-header">
+      <h3>Include in judgement</h3>
+      <button type="button" class="link" id="judge-picker-close">Cancel</button>
+    </header>
+    <ul class="judge-picker-list" id="judge-picker-list"></ul>
+    <footer class="judge-picker-footer">
+      <button type="button" class="link" id="judge-picker-toggle-all">Toggle all</button>
+      <button type="button" class="btn-primary" id="judge-picker-confirm">Judge</button>
+    </footer>
+  </div>
+
   <div class="banner" id="banner" hidden></div>
 
   <script type="module" src="cockpit.js"></script>

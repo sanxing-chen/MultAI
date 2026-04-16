@@ -808,6 +808,78 @@ body[data-layout-mode="tabs"] .topnav-per-row { display: none; }
   margin-top: 4px;
 }
 
+/* ---- Judge picker ---- */
+
+.judge-picker {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  background: var(--surface-raised);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(20, 20, 19, 0.18);
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.judge-picker-header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--divider);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.judge-picker-header h3 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.judge-picker-list {
+  list-style: none;
+  padding: var(--space-2) 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.judge-picker-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text);
+  transition: background var(--duration) var(--ease);
+}
+
+.judge-picker-item:hover {
+  background: var(--surface);
+}
+
+.judge-picker-item input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.judge-picker-footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--divider);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* ---- Compare drawer ---- */
 
 .drawer {
