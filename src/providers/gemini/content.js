@@ -39,6 +39,16 @@
       'button[aria-label*="Temporary chat" i]',
       'button[mattooltip*="Temporary chat" i]'
     ],
+    modelPickerButton: [
+      'button[aria-label*="mode picker" i]',
+      'button[mattooltip*="mode picker" i]',
+      'button[aria-haspopup="menu"][aria-label*="Model" i]',
+      'button[mattooltip*="Gemini" i]'
+    ],
+    modelMenuItems: [
+      '[role="menuitem"]',
+      '.mat-mdc-menu-item'
+    ],
     lastResponse: [
       'message-content.model-response-text',
       'model-response',
@@ -116,5 +126,41 @@
     location.assign('/app');
   }
 
-  R.register({ provider: PROVIDER, probe, broadcast, newChat, lastResponseSelectors: S.lastResponse });
+  function textOf(el) {
+    return (el?.innerText || el?.textContent || '').trim().toLowerCase();
+  }
+
+  function modelItems() {
+    return R.findAll(S.modelMenuItems).filter(el => {
+      if (!R.isUsable(el)) return false;
+      const text = textOf(el);
+      return text.includes('fast') || text.includes('thinking') || text.includes('pro');
+    });
+  }
+
+  async function setModel(modelId) {
+    const btn = R.findFirst(S.modelPickerButton);
+    if (!btn) throw new Error('model picker not found');
+
+    const currentText = textOf(btn);
+    if (modelId === '__best__' && currentText.includes('pro')) return;
+    if (modelId === '__cheap__' && currentText.includes('fast')) return;
+
+    btn.click();
+    await R.wait(100);
+    const item = await R.waitFor(() => {
+      const items = modelItems();
+      if (!items.length) return null;
+      return modelId === '__cheap__' ? items[0] : items[items.length - 1];
+    }, 3000);
+
+    if (item) {
+      item.click();
+    } else {
+      btn.click();
+      throw new Error(`model ${modelId} not found or menu empty`);
+    }
+  }
+
+  R.register({ provider: PROVIDER, probe, broadcast, newChat, setModel, lastResponseSelectors: S.lastResponse });
 })();

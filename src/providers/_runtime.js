@@ -328,6 +328,19 @@
             if (config.setChat) await config.setChat(data.chatId);
             reply({ type: 'multai:set-chat-ack', ok: true });
             break;
+          case 'multai:set-model':
+            if (config.setModel) {
+              try {
+                await config.setModel(data.modelId);
+                reply({ type: 'multai:set-model-ack', ok: true });
+              } catch (err) {
+                console.error(`[multai-${PROVIDER}] set-model failed:`, err);
+                reply({ type: 'multai:error', error: String(err.message || err) });
+              }
+            } else {
+              reply({ type: 'multai:error', error: 'setModel not implemented for this provider' });
+            }
+            break;
           case 'multai:read-last': {
             const r = typeof config.readLast === 'function'
               ? await config.readLast()

@@ -27,6 +27,17 @@
       'main',
       'body'
     ],
+    modelPickerButton: [
+      'button[aria-haspopup="menu"]:not([aria-label*="attachment" i])',
+      'main button[aria-haspopup="menu"]'
+    ],
+    modelMenuItems: [
+      '[role="dialog"] button',
+      'div[role="dialog"] button',
+      '[role="menuitem"]',
+      '[role="menu"] button',
+      'button[role="menuitem"]'
+    ],
     newChatLink: [
       'a[href="/"]',
       'button[aria-label*="New" i]'
@@ -74,6 +85,45 @@
     location.assign('/');
   }
 
+  function textOf(el) {
+    return (el?.innerText || el?.textContent || '').trim().toLowerCase();
+  }
+
+  function modelItems() {
+    return R.findAll(S.modelMenuItems).filter(el => {
+      if (!R.isUsable(el)) return false;
+      const text = textOf(el);
+      return text.includes('instant') || text.includes('thinking') || text.includes('shopping') || text.includes('contemplating');
+    });
+  }
+
+  async function setModel(modelId) {
+    const btn = R.findAll(S.modelPickerButton).find(el => {
+      const text = textOf(el);
+      return text.includes('instant') || text.includes('thinking') || text.includes('shopping') || text.includes('contemplating');
+    }) || R.findFirst(S.modelPickerButton);
+    if (!btn) throw new Error('model picker not found');
+
+    const currentText = textOf(btn);
+    if (modelId === '__best__' && currentText.includes('contemplating')) return;
+    if (modelId === '__cheap__' && currentText.includes('instant')) return;
+
+    btn.click();
+    await R.wait(100);
+    const item = await R.waitFor(() => {
+      const items = modelItems();
+      if (!items.length) return null;
+      return modelId === '__cheap__' ? items[0] : items[items.length - 1];
+    }, 3000);
+
+    if (item) {
+      item.click();
+    } else {
+      btn.click();
+      throw new Error(`model ${modelId} not found or menu empty`);
+    }
+  }
+
   async function readLast() {
     const viaCopy = await R.readLastViaCopy(S.copyButton, S.lastResponse);
     if (viaCopy.text && viaCopy.text.length > 0) return viaCopy;
@@ -107,5 +157,5 @@
     };
   }
 
-  R.register({ provider: PROVIDER, probe, broadcast, newChat, readLast, lastResponseSelectors: S.lastResponse });
+  R.register({ provider: PROVIDER, probe, broadcast, newChat, setModel, readLast, lastResponseSelectors: S.lastResponse });
 })();

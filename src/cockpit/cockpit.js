@@ -27,6 +27,13 @@ let library = [];                 // [{ id, name, text }]
 
 const PANE_ORIGINS = new Set(PROVIDERS.map(p => p.origin));
 
+function providerSupportsModelSelection(provider, modelId = '__best__') {
+  if (!provider?.modelSelection) return false;
+  if (provider.modelSelection === true) return true;
+  const mode = modelId === '__cheap__' ? 'cheap' : 'advanced';
+  return !!provider.modelSelection[mode];
+}
+
 /* ---------- Storage ---------- */
 
 async function loadState() {
@@ -398,6 +405,7 @@ function createPane(provider) {
         <span class="pane-title">${escapeHtml(provider.label)}</span>
         <div class="pane-actions">
           <span class="pane-status" data-role="status">loading</span>
+          <button type="button" class="pane-action" data-pane-action="best" title="Switch to the most advanced available model">Best</button>
           <button type="button" class="pane-action" data-pane-action="judge" title="Ask this model to judge other models' responses">Judge</button>
           <button type="button" class="pane-action" data-pane-action="quote" title="Quote current selection from this pane">Quote</button>
           <button type="button" class="pane-action" data-pane-action="open-site" title="Open this chat in a new tab">Open</button>
@@ -424,6 +432,10 @@ function createPane(provider) {
     </div>
   `;
 
+  pane.querySelector('[data-pane-action="best"]').addEventListener('click', () => switchModelOn(provider.id, '__best__', 'Best'));
+  if (!providerSupportsModelSelection(provider, '__best__')) {
+    pane.querySelector('[data-pane-action="best"]').hidden = true;
+  }
   pane.querySelector('[data-pane-action="judge"]').addEventListener('click', () => judgePane(provider.id));
   pane.querySelector('[data-pane-action="quote"]').addEventListener('click', () => quoteFromPane(provider.id));
   pane.querySelector('[data-pane-action="open-site"]').addEventListener('click', () => openPaneInTab(provider.id));
@@ -729,6 +741,77 @@ async function newChatOn(providerId) {
   } catch (_) {
     pane.iframe.src = provider.url;
   }
+}
+
+async function switchModelOn(providerId, modelId, buttonLabel = 'Best') {
+  const pane = panes[providerId];
+  const provider = getProvider(providerId);
+  if (!provider || !providerSupportsModelSelection(provider, modelId)) {
+    showBanner(`${provider?.label || 'Provider'} does not support model switching yet.`);
+    return;
+  }
+  if (!pane?.ready) {
+    showBanner(`${provider.label} is not ready.`);
+    return;
+  }
+  try {
+    const btn = document.querySelector(`.pane[data-provider="${providerId}"] [data-pane-action="best"]`);
+    if (btn) { btn.textContent = 'Switching…'; btn.disabled = true; }
+    await sendToPane(pane.iframe, provider.origin, { type: MSG.SET_MODEL, modelId });
+    const targetLabel = modelId === '__cheap__' ? 'the cheapest available model' : 'the most advanced available model';
+    showBanner(`${provider.label}: Switching to ${targetLabel}…`);
+    if (btn) { btn.textContent = buttonLabel; btn.disabled = false; }
+  } catch (err) {
+    showBanner(`${provider.label} failed to switch model: ${err.message || err}`);
+    const btn = document.querySelector(`.pane[data-provider="${providerId}"] [data-pane-action="best"]`);
+    if (btn) { btn.textContent = buttonLabel; btn.disabled = false; }
+  }
+}
+
+async function switchModelsAll(modelId) {
+  const supported = state.crew.filter(id => {
+    const provider = getProvider(id);
+    return providerSupportsModelSelection(provider, modelId) && panes[id]?.ready;
+  });
+  if (supported.length === 0) {
+    showBanner('No ready panes support model switching.');
+    return;
+  }
+
+  const action = modelId === '__cheap__' ? 'Cheapest' : 'Advanced';
+  const actionName = modelId === '__cheap__' ? 'switch-cheap' : 'switch-advanced';
+  const trigger = document.querySelector(`[data-action="${actionName}"]`);
+  if (trigger) {
+    trigger.disabled = true;
+    trigger.textContent = 'Switching…';
+  }
+
+  const results = await Promise.allSettled(
+    supported.map(async id => {
+      const provider = getProvider(id);
+      const pane = panes[id];
+      await sendToPane(pane.iframe, provider.origin, { type: MSG.SET_MODEL, modelId });
+      return provider.label;
+    })
+  );
+
+  if (trigger) {
+    trigger.disabled = false;
+    trigger.textContent = action;
+  }
+
+  const failures = results
+    .map((result, index) => ({ result, id: supported[index] }))
+    .filter(entry => entry.result.status === 'rejected')
+    .map(entry => `${getProvider(entry.id).label}: ${entry.result.reason?.message || entry.result.reason}`);
+
+  if (failures.length) {
+    showBanner(`Model switch completed with failures: ${failures.join(' · ')}`, 7000);
+    return;
+  }
+
+  const summary = modelId === '__cheap__' ? 'cheapest available model' : 'most advanced available model';
+  showBanner(`Switched ${supported.length} pane${supported.length === 1 ? '' : 's'} to the ${summary}.`);
 }
 
 /* ---------- Attachments ---------- */
@@ -1286,6 +1369,8 @@ for (const chip of document.querySelectorAll('.chip[data-layout]')) {
 document.querySelector('[data-action="compare"]')?.addEventListener('click', openCompare);
 document.querySelector('[data-action="new-conversation"]')?.addEventListener('click', newConversationAll);
 document.querySelector('[data-action="new-temporary-chat"]')?.addEventListener('click', newTemporaryChatAll);
+document.querySelector('[data-action="switch-advanced"]')?.addEventListener('click', () => switchModelsAll('__best__'));
+document.querySelector('[data-action="switch-cheap"]')?.addEventListener('click', () => switchModelsAll('__cheap__'));
 document.getElementById('controls-toggle')?.addEventListener('click', toggleControls);
 document.getElementById('prompt-toggle')?.addEventListener('click', togglePrompt);
 
