@@ -34,6 +34,11 @@
       'expandable-button[aria-label*="New chat" i] button',
       'a[href="/app"]'
     ],
+    tempChatButton: [
+      '[data-test-id="temp-chat-button"]',
+      'button[aria-label*="Temporary chat" i]',
+      'button[mattooltip*="Temporary chat" i]'
+    ],
     lastResponse: [
       'message-content.model-response-text',
       'model-response',
@@ -43,6 +48,30 @@
   };
 
   async function probe() {
+    // If the URL has #temporary-chat, try to activate it if not already in that mode.
+    if (location.hash === '#temporary-chat') {
+      const btn = R.findFirst(S.tempChatButton);
+      if (btn && R.isUsable(btn)) {
+        const input = R.findFirst(S.promptInput);
+        const isTemp = !!document.querySelector('[data-test-id="temporary-chat-header"]') ||
+                       document.body.innerText.includes('Temporary Chat') ||
+                       input?.getAttribute('data-placeholder')?.toLowerCase().includes('temporary');
+        
+        if (isTemp) {
+          // Already in temp mode, clear the hash
+          history.replaceState(null, null, ' ');
+        } else {
+          console.log('[multai-gemini] triggering temporary chat mode');
+          btn.click();
+          // Force click event if button.click() is insufficient in Angular
+          btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+          btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+          btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+          btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+        }
+      }
+    }
+
     return {
       ready: !!R.findFirst(S.promptInput),
       generating: !!R.findFirst(S.stopButton)
