@@ -644,18 +644,18 @@ async function newConversationAll() {
 
 function reloadPaneTo(providerId, url) {
   const p = panes[providerId];
-  const provider = getProvider(providerId);
-  if (!p || !provider) return;
-  p.ready = false;
-  p.state = null;
-  if (p.fallback) p.fallback.hidden = true;
-  if (p.iframe) p.iframe.style.opacity = '';
-  if (provider.hasContentScript) {
-    p.iframe.addEventListener('load', () => wakePane(providerId), { once: true });
-    startReadyWatchdog(providerId);
+  if (!p) return;
+  const oldSrc = p.iframe.src;
+  reloadPane(providerId, url);
+  // If only hash changed, reloadPane just set the src, but browser 
+  // won't fire 'load'. Force a real reload so wakePane triggers.
+  if (oldSrc && oldSrc.split('#')[0] === url.split('#')[0]) {
+    try {
+      p.iframe.contentWindow.location.reload();
+    } catch (_) {
+      p.iframe.src = url; // fallback
+    }
   }
-  p.iframe.src = url;
-  updatePaneHeader(providerId);
 }
 
 function newTemporaryChatAll() {
@@ -682,7 +682,7 @@ function newTemporaryChatAll() {
   if (parts.length) showBanner(parts.join(' · '));
 }
 
-function reloadPane(providerId) {
+function reloadPane(providerId, newUrl) {
   const p = panes[providerId];
   if (!p) return;
   p.ready = false;
@@ -691,7 +691,8 @@ function reloadPane(providerId) {
   if (p.iframe) p.iframe.style.opacity = '';
   updatePaneHeader(providerId);
   p.iframe.addEventListener('load', () => wakePane(providerId), { once: true });
-  p.iframe.src = p.iframe.src;
+  if (newUrl) p.iframe.src = newUrl;
+  else p.iframe.src = p.iframe.src;
   const provider = getProvider(providerId);
   if (provider?.hasContentScript) startReadyWatchdog(providerId);
 }

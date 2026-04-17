@@ -33,7 +33,7 @@ The first time you open the cockpit, each pane will need you to sign in to that 
 - **Broadcast prompt** — type once, send to every active pane with Cmd + Enter.
 - **Attachments** — drag, paste, or click Attach. Files are forwarded to every pane that supports them.
 - **New chat, everywhere** — one button resets every active pane to a fresh conversation.
-- **Temporary chat** — a separate button starts incognito / temporary sessions in providers that support it (ChatGPT, Claude, Qwen).
+- **Temporary chat** — a separate button starts incognito / temporary sessions in providers that support it (ChatGPT, Claude, Gemini, Grok, Qwen).
 - **Compare** — a drawer that collects the latest assistant reply from every pane so you can read them side-by-side and export the lot as Markdown.
 
 ![Compare drawer](figures/compare.png)
